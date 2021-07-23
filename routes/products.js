@@ -1,5 +1,4 @@
 const express = require('express')
-const { isValidObjectId } = require('mongoose')
 const router = express.Router()
 const Product = require('../models/product')
 
@@ -88,7 +87,7 @@ router.delete('/:id', getProduct, async (req, res) => {
 //Deleting many
 router.delete('/', async (req, res) => {
     try {
-        await Product.deleteMany({ _id: { $gte: ObjectId("60fa94e24c59af12f4ea1949") } })
+        await Product.deleteMany({ _id: { $gte: objectId("60fa94e24c59af12f4ea1949") } })
         res.json({ message: "Deleted Products" })
     } catch (err) {
         res.status(500).json({ message: err.message })
