@@ -6,7 +6,8 @@ const Product = require('../models/product')
 router.get('/', async (req, res) => {
     try {
         const products = await Product.find()
-        res.json(products)
+        var productIds = products.map(pr => productIds = [...productIds, pr._id])
+        res.json(productIds)
     } catch (err) {
         res.status(500).json({ message: err.message })
     }
@@ -52,8 +53,13 @@ router.post('/', async (req, res) => {
     })
 
     try {
-        const newProduct = await product.save()
-        res.status(201).json(newProduct)
+        if (req.body.productId) {
+            const updatedProduct = await Product.findByIdAndUpdate(req.body.productId, req.body)
+            res.status(201).json(updatedProduct)
+        } else {
+            const newProduct = await product.save()
+            res.status(201).json(req.body.productId)
+        }
     } catch (err) {
         res.status(400).json({ message: err.message })
     }
