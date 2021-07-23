@@ -6,11 +6,7 @@ const Product = require('../models/product')
 router.get('/', async (req, res) => {
     try {
         const products = await Product.find()
-        var productIds = [];
-        for (var i = 0; i < products.length; i++) {
-            productIds = [...productIds, products[i]._id]
-        }
-        res.json(productIds)
+        res.json(products)
     } catch (err) {
         res.status(500).json({ message: err.message })
     }
@@ -61,7 +57,7 @@ router.post('/', async (req, res) => {
             res.status(201).json(updatedProduct)
         } else {
             const newProduct = await product.save()
-            res.status(201).json(req.body.productId)
+            res.status(201).json(newProduct)
         }
     } catch (err) {
         res.status(400).json({ message: err.message })
@@ -83,6 +79,16 @@ router.delete('/:id', getProduct, async (req, res) => {
     try {
         await res.product.remove()
         res.json({ message: "Deleted Product" })
+    } catch (err) {
+        res.status(500).json({ message: err.message })
+    }
+})
+
+//Deleting many
+router.delete('/', async (req, res) => {
+    try {
+        await Product.deleteMany()
+        res.json({ message: "Deleted Products" })
     } catch (err) {
         res.status(500).json({ message: err.message })
     }
