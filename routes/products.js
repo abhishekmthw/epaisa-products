@@ -6,7 +6,10 @@ const Product = require('../models/product')
 router.get('/', async (req, res) => {
     try {
         const products = await Product.find()
-        var productIds = products.map(pr => productIds = [...productIds, pr._id])
+        var productIds = [];
+        for (var i = 0; i < products.length; i++) {
+            productIds = [...productIds, products[i]._id]
+        }
         res.json(productIds)
     } catch (err) {
         res.status(500).json({ message: err.message })
