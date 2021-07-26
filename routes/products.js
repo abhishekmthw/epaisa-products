@@ -74,21 +74,21 @@ router.patch('/:id', getProduct, async (req, res) => {
     }
 })
 
-// Deleting One
-router.delete('/:id', getProduct, async (req, res) => {
+//Deleting many
+router.delete('/', async (req, res) => {
     try {
-        await res.product.remove()
-        res.json({ message: "Deleted Product" })
+        await Product.deleteMany()
+        res.json({ message: "Deleted Products" })
     } catch (err) {
         res.status(500).json({ message: err.message })
     }
 })
 
-//Deleting many
-router.delete('/', async (req, res) => {
+// Deleting One
+router.delete('/:id', getProduct, async (req, res) => {
     try {
-        await Product.deleteMany({ _id: { $gte: objectId("60fa94e24c59af12f4ea1949") } })
-        res.json({ message: "Deleted Products" })
+        await res.product.remove()
+        res.json({ message: "Deleted Product" })
     } catch (err) {
         res.status(500).json({ message: err.message })
     }
