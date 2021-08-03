@@ -1,4 +1,6 @@
 .env
 node_modules
 aws key
-route.rest
+route-local.rest
+route-aws.rest
+keys-unwanted.json
