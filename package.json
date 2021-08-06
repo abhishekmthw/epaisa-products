@@ -9,8 +9,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/bigquery": "^5.7.0",
+    "@google-cloud/pubsub": "^2.16.1",
+    "@google-cloud/storage": "^5.11.1",
     "express": "^4.17.1",
+    "flatted": "^3.2.2",
     "googleapis": "^39.2.0",
+    "mongo-getdb": "^4.2.0",
     "mongoose": "^5.13.3"
   },
   "devDependencies": {

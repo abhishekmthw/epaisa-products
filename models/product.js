@@ -2,7 +2,8 @@ const mongoose = require('mongoose')
 
 const productSchema = new mongoose.Schema({
     store: {
-        type: String
+        type: String,
+        required: true
     },
     productHandler: {
         type: String

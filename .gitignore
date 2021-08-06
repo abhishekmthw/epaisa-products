@@ -4,3 +4,7 @@ aws key
 route-local.rest
 route-aws.rest
 keys-unwanted.json
+atomic-monument-321804-8f16eb1566f1.json
+products.json
+bigquery-schema.json
+productsUDF.js

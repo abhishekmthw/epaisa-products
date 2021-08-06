@@ -64,7 +64,7 @@ async function getSheetData(ssId) {
     const gsapi = google.sheets({ version: 'v4', auth: client })
     const opt = {
         spreadsheetId: ssId,
-        range: `Products!A2:AE`
+        range: `Products!A2:AD`
     };
 
     let res = await gsapi.spreadsheets.values.get(opt);
@@ -115,10 +115,10 @@ async function addProductId(productId, ssId, rowNumber) {
         spreadsheetId: ssId,
         range: `Products!AD${rowNumber}`,
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [[productId]] }
+        resource: { values: productId }
     };
-    await gsapi.spreadsheets.values.clear(opt)
-    console.log("Deleted Data Successfully")
+    await gsapi.spreadsheets.values.update(opt)
+    console.log("Updated Product ID on Sheet")
 }
 
 // Updating Sheets
@@ -135,14 +135,39 @@ async function updateSheets(data, ssId, rowNumber) {
 }
 
 // Deleting All Products from sheets
-async function deleteSheetData(ssId) {
+async function deleteAllSheetData(ssId) {
+    const gsapi = google.sheets({ version: 'v4', auth: client })
+    const opt = {
+        spreadsheetId: ssId,
+        range: `Products!A2:AD`
+    };
+    gsapi.spreadsheets.values.clear(opt);
+    console.log("Deleted All Sheet Data");
+}
+
+
+async function deleteSheetData(ssId, rowNumber) {
     const gsapi = google.sheets({ version: 'v4', auth: client });
     const opt = {
         spreadsheetId: ssId,
-        range: `Products!A2`
+        resource: {
+            "requests": [
+                {
+                    "deleteDimension": {
+                        "range": {
+                            "sheetId": 127617850,
+                            "dimension": "ROWS",
+                            "startIndex": rowNumber,
+                            "endIndex": rowNumber + 1
+                        }
+                    }
+                }
+            ]
+        }
     };
-    await gsapi.spreadsheets.values.clear(opt)
-    console.log("Deleted All Data Successfully")
+    await gsapi.spreadsheets.batchUpdate(opt)
+    console.log("Deleted Product from Sheet Successfully")
+    return 1;
 }
 
 // Getting all products
@@ -160,6 +185,45 @@ router.get('/:id', getProduct, (req, res) => {
     res.json(res.product)
 })
 
+async function updateAndDeleteSheets(products, sheetData, merchant) {
+    for (let i = 0; i < products.length; i++) {
+        var check = 0;
+        for (let j = 0; j < sheetData.length; j++) {
+            if (products[i]._id == sheetData[j].productId || sheetData[j].productId == "" || sheetData[j].productId == undefined) {
+                check = 1;
+                console.log("Skipped delete")
+                break;
+            }
+        }
+        if (check == 0) {
+            const deletedProduct = await Product.findByIdAndDelete(products[i]._id);
+            await Merchant.findByIdAndUpdate(deletedProduct.merchantId, { totalRows: merchant.totalRows - 1 })
+        }
+    }
+    // Adding and Updating Database
+    for (let i = 0; i < sheetData.length; i++) {
+        if ((sheetData[i].productId == "" || sheetData[i].productId == undefined) && (sheetData[i].store != "")) {
+            sheetData[i] = { ...sheetData[i], merchantId: merchant._id }
+            const newProduct = new Product(sheetData[i]);
+            console.log("Saved")
+            const updatedProduct = await newProduct.save();
+            client.authorize(async (err, tokens) => {
+                if (err) {
+                    console.log(err);
+                    return;
+                } else {
+                    const productId = [[updatedProduct._id]]
+                    //console.log(productId)
+                    await Merchant.findByIdAndUpdate(merchant._id, { totalRows: merchant.totalRows + 1 })
+                    await addProductId(productId, merchant.spreadsheetId, i + 2);
+                }
+            });
+        } else {
+            await Product.findByIdAndUpdate(sheetData[i].productId, sheetData[i]);
+        }
+    }
+}
+
 // Update DataBase from Spreadsheet
 router.post('/sheets/', async (req, res) => {
     try {
@@ -167,38 +231,17 @@ router.post('/sheets/', async (req, res) => {
         let sheetData = await getSheetData(merchant.spreadsheetId);
         let products = await Product.find();
         // Deleting data from Database
-        for (let i = 0; i < sheetData.length; i++) {
-            var check = 0;
-            for (let j = 0; j < products.length; j++) {
-                if (sheetData[i].productId == products[j]._id || sheetData[i].productId == "") {
-                    check = 1;
-                    break;
-                }
-            }
-            if (check == 0) {
-                const deletedProduct = await Product.findByIdAndDelete(products[i]._id);
-                await Merchant.findById(deletedProduct.merchantId, { totalRows: totalRows - 1 })
+        let count = 0;
+        for (let j = 0; j < sheetData.length; j++) {
+            if (sheetData[j].store == "" || sheetData[j].store == undefined) {
+                const res = await deleteSheetData(merchant.spreadsheetId, j + 1);
+                if (res == 1)
+                    updateAndDeleteSheets(products, sheetData, merchant);
             }
         }
-        // Adding and Updating Database
-        for (let i = 0; i < sheetData.length; i++) {
-            if (sheetData[i].productId == "") {
-                sheetData[i] = { ...sheetData[i], merchantId: merchant._id }
-                const newProduct = new Product(sheetData[i]);
-                const updatedProduct = await newProduct.save();
-                console.log(updatedProduct)
-                client.authorize(async (err, tokens) => {
-                    if (err) {
-                        console.log(err);
-                        return;
-                    } else {
-                        await addProductId(updatedProduct._id, merchant.spreadsheetId, i + 2);
-                    }
-                });
-            } else {
-                await Product.findByIdAndUpdate(sheetData[i].productId, sheetData[i]);
-            }
-        }
+        // if (products.length == (sheetData.length - count)) {
+
+        // }
         products = await Product.find();
         res.json(products)
     } catch (err) {
@@ -230,17 +273,51 @@ router.post('/', async (req, res) => {
 // Updating One
 router.patch('/:id', async (req, res) => {
     try {
-        const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body)
+        await Product.findByIdAndUpdate(req.params.id, req.body)
+        const updatedProduct = await Product.findById(req.params.id)
         const merchant = await Merchant.findById(updatedProduct.merchantId);
-        client.authorize((err, tokens) => {
+        client.authorize(async (err, tokens) => {
             if (err) {
                 console.log(err);
                 return;
             } else {
                 let updatedSheetData = [];
+                let sheetData = await getSheetData(merchant.spreadsheetId);
                 for (let i = 0; i < sheetData.length; i++) {
                     if (sheetData[i].productId == req.params.id) {
-                        updatedSheetData[0] = Object.keys(updatedProduct)
+                        updatedSheetData[0] = [
+                            updatedProduct.store,
+                            updatedProduct.productHandler,
+                            updatedProduct.productDisplay,
+                            updatedProduct.productDescription,
+                            updatedProduct.categories,
+                            updatedProduct.manufacturers,
+                            updatedProduct.distributors,
+                            updatedProduct.taxes,
+                            updatedProduct.hsnCode,
+                            updatedProduct.variantName,
+                            updatedProduct.sellingPrice,
+                            updatedProduct.buyingPrice,
+                            updatedProduct.mrp,
+                            updatedProduct.discount,
+                            updatedProduct.discountType,
+                            updatedProduct.sku,
+                            updatedProduct.upc,
+                            updatedProduct.currentQuantity,
+                            updatedProduct.newQuantity,
+                            updatedProduct.threshold,
+                            updatedProduct.unitType,
+                            updatedProduct.unit,
+                            updatedProduct.product,
+                            updatedProduct.brand,
+                            updatedProduct.category,
+                            updatedProduct.shade,
+                            updatedProduct.uom,
+                            updatedProduct.rackNo,
+                            updatedProduct.group,
+                            updatedProduct._id
+                        ];
+                        console.log(updatedSheetData)
                         updateSheets(updatedSheetData, merchant.spreadsheetId, i + 2)
                         break;
                     } else {
@@ -260,10 +337,9 @@ router.delete('/', async (req, res) => {
     try {
         const product = await Product.findOne()
         await Product.deleteMany()
-        console.log(product)
         merchant = await Merchant.findById(product.merchantId)
         await Merchant.findByIdAndUpdate(product.merchantId, { totalRows: 0 })
-        await deleteSheetData(merchant.spreadsheetId)
+        await deleteAllSheetData(merchant.spreadsheetId, 1)
         res.json({ message: "Deleted Products" })
     } catch (err) {
         res.status(500).json({ message: err.message })
@@ -275,17 +351,15 @@ router.delete('/:id', getProduct, async (req, res) => {
     try {
         await res.product.remove()
         const merchant = await Merchant.findById(res.product.merchantId)
+        await Merchant.findByIdAndUpdate(merchant._id, { totalRows: merchant.totalRows - 1 })
         const sheetData = await getSheetData(merchant.spreadsheetId)
-        let count = 0;
-        let updatedSheetData = [];
         for (let i = 0; i < sheetData.length; i++) {
             if (sheetData[i].productId == res.product._id) {
-                continue;
+                const res = deleteSheetData(merchant.spreadsheetId, i + 1);
             } else {
-                updatedSheetData[count++] = sheetData[i];
+                continue;
             }
         }
-        updateSheets(updatedSheetData, merchant.spreadsheetId, 2)
         res.json({ message: "Deleted Product" })
     } catch (err) {
         res.status(500).json({ message: err.message })
